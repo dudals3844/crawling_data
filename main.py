@@ -9,6 +9,7 @@ import re
 import datetime
 import sys
 import sqlite3
+from multiprocessing import Pool
 sys.path.append('C:/Users/PC/PycharmProjects/data/')
 
 class CrawlingData():
@@ -17,9 +18,8 @@ class CrawlingData():
         # 테스트 속도를 위해 잠시 주석처리
         #self.delete_file(file_dr='C:/Users/PC/PycharmProjects/systemtrading_platform/db/상장회사.xls')
         #self.delete_file(file_dr="C:/Users/PC/Downloads/data.xls")
-        #self.download_company_data()
-        self.con = sqlite3.connect("C:/Users/PC/PycharmProjects/systemtrading_platform/db/DayPrice.db")
-        company_df = self.read_excel_to_dataframe('C:/Users/PC/PycharmProjects/systemtrading_platform/db/상장회사.xls')
+        # #self.download_company_data()
+        # self.con = sqlite3.connect("C:/Users/PC/PycharmProjects/systemtrading_platform/db/DayPrice.db")
         print(company_df)
         self.crawling_all_company_price_data(company_df)
         #self.crwling_all_company_price_data_update(company_df)
@@ -51,10 +51,6 @@ class CrawlingData():
     def change_file_name_and_directory(self, origin_dr, change_dr):
         os.rename(origin_dr, change_dr)
 
-    # 엑셀 파일로 데이터 프레임 읽기
-    def read_excel_to_dataframe(self, file_dr):
-        df = pd.read_excel(file_dr)
-        return df
 
     # 데이터 프레임을 엑셀로 저장
     def save_dataframe_as_excel(self, save_folder, dataframe,file_name):
@@ -121,5 +117,48 @@ class CrawlingData():
             except:
                 pass
 
+
+def standard_code(code):
+    code = "{0:0>6}".format(code)  # 오류안나게 종목코드 6자리 맞춰줌
+    return code
+
+# 엑셀 파일로 데이터 프레임 읽기
+def read_excel_to_dataframe(file_dr):
+    df = pd.read_excel(file_dr)
+    return df
+
+def saveDataFrameToCsv(dataFrame, fileName):
+    dataFrame.to_csv('C:/Users/PC/PycharmProjects/systemtrading_platform/db/pricecsv/'+fileName+'.csv', mode='w')
+
+# 상장된 회사들 전체 가격 저장
+def crawling_all_company_price_data(code):
+    pattern = re.compile("(\d+)")
+    stock = pd.DataFrame()
+    code = standard_code(code)
+
+    url = "https://finance.naver.com/item/sise_day.nhn?code={}&page={}"
+    try:
+        last = pattern.findall(
+            bs(requests.get(url.format(code, 1)).text, 'html.parser').find("td",class_='pgRR').find("a")['href'])[-1]
+    except:
+        last = 1
+
+    print(code+' 크롤링 중')
+    for cnt in range(int(last),0,-1):
+        data = pd.read_html(url.format(code,cnt))[0].dropna()
+        data = data.sort_index(ascending=False)
+        data.reset_index(drop=True, inplace = True)
+        stock = stock.append(data)
+
+    stock.reset_index(drop=True, inplace=True)
+
+    saveDataFrameToCsv(dataFrame=stock, fileName=code)
+
 if __name__ =="__main__":
-    crawlingData = CrawlingData()
+    company_df = read_excel_to_dataframe('C:/Users/PC/PycharmProjects/systemtrading_platform/db/상장회사.xls')
+    company_series = company_df['종목코드']
+    company_list = list(company_series)
+    pool = Pool(processes=8)
+    pool.map(crawling_all_company_price_data, company_list)
+    pool.close()
+    pool.join()
