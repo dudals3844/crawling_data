@@ -118,6 +118,32 @@ class CrawlingData():
                 pass
 
 
+
+
+
+def crwling_all_company_price_data_update(code):
+
+    try:
+        tmp_df = None
+
+        code = standard_code(code)
+        stock_df = pd.read_csv('C:/Users/PC/PycharmProjects/systemtrading_platform/db/pricecsv/'+ code +'.csv')
+        url = "https://finance.naver.com/item/sise_day.nhn?code={}"
+
+        tmp_df = pd.read_html(url.format(code))[0].dropna()
+        tmp_df = tmp_df.sort_index(ascending=False)
+        tmp_df.reset_index(drop=True, inplace=True)
+        print(code)
+        stock_df = stock_df.append(tmp_df)
+        # tmp_df.drop(['Unnamed: 0'],axis='columns', inplace=True)
+        stock_df.drop_duplicates(['날짜'], inplace=True)
+        stock_df.reset_index(drop=True, inplace=True)
+        stock_df.dropna(axis = 'columns', inplace = True)
+        saveDataFrameToCsv(dataFrame = stock_df, fileName = code)
+    except:
+        pass
+
+
 def standard_code(code):
     code = "{0:0>6}".format(code)  # 오류안나게 종목코드 6자리 맞춰줌
     return code
@@ -159,6 +185,9 @@ if __name__ =="__main__":
     company_series = company_df['종목코드']
     company_list = list(company_series)
     pool = Pool(processes=8)
-    pool.map(crawling_all_company_price_data, company_list)
+    # 전부 크롤링
+    # pool.map(crawling_all_company_price_data, company_list)
+    # 주가 엡데이트
+    pool.map(crwling_all_company_price_data_update, company_list)
     pool.close()
     pool.join()
